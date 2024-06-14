@@ -8,7 +8,7 @@ public class TimerController : MonoBehaviour
     [SerializeField] private TMP_Text timerText;
     [SerializeField] private Button startButton;
     
-    public float TimerDuration { get; set; } = 60f;
+    public float TimerDuration { get; set; } = 90f;
     private float timer;
     private bool isTimerRunning;
     public event Action TimerEnded;
@@ -45,6 +45,6 @@ public class TimerController : MonoBehaviour
 
     private void UpdateTimerText()
     {
-        timerText.text = $"{(int)timer}s";
+        timerText.text = $"{(int)timer} сек";
     }
 }

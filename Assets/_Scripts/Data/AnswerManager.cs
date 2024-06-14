@@ -9,7 +9,7 @@ namespace _Scripts.Data
     {
         public static AnswerManager Instance { get; private set; }
 
-        public static List<string> PresentStudents;
+        public static List<string> PresentStudents = new();
         public static Dictionary<string, int> StudentScores = new();
 
         private void Awake()

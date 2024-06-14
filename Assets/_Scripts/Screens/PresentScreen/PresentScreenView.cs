@@ -30,14 +30,29 @@ namespace _Scripts.Screens.PresentScreen
             ScreenNavigationSystem.ScreenNavigationSystem.Instance.NavigateTo(ScreenName.Game);
         }
 
+        public void UpdateStudentItems()
+        {
+            _presentStudents.Clear();
+            foreach (var student in studentItems)
+            {
+                if (AnswerManager.PresentStudents.Contains(student.Name.text))
+                {
+                    student.IsPresent = true;
+                }
+                else
+                {
+                    student.IsPresent = false;
+                }
+            }
+        }
+
         public override void Show(object data = null)
         {
-        
+            UpdateStudentItems();
         }
 
         public override void Hide()
         {
-        
         }
     }
 }

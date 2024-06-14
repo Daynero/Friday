@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using _Scripts.Data;
+using _Scripts.ScreenNavigationSystem;
 
 namespace _Scripts.Screens.GameScreen
 {
@@ -11,9 +12,9 @@ namespace _Scripts.Screens.GameScreen
     {
         [SerializeField] private LeaderBoardStudent leaderBoardStudentPrefab;
         [SerializeField] private Transform content;
-        [SerializeField] private TMP_Text currentStudentText;
         [SerializeField] private Button yesButton;
         [SerializeField] private Button noButton;
+        [SerializeField] private Button backButton; // Back button
 
         private List<LeaderBoardStudent> leaderBoardStudents = new List<LeaderBoardStudent>();
         private List<string> availableStudents;
@@ -24,57 +25,70 @@ namespace _Scripts.Screens.GameScreen
         private void Start()
         {
             // Set file path to a subfolder in the Assets folder
-            string directoryPath = Path.Combine(Application.dataPath, "StudentScores");
-            if (!Directory.Exists(directoryPath))
-            {
-                Directory.CreateDirectory(directoryPath);
-            }
-            filePath = Path.Combine(directoryPath, "StudentScores.txt");
-
-            InitializeLeaderBoard();
-            StartNewRound();
+            backButton.onClick.AddListener(OnBackButtonClicked); // Initialize back button
         }
 
         private void InitializeLeaderBoard()
         {
+            // Clear the current leaderboard display
+            foreach (Transform child in content)
+            {
+                Destroy(child.gameObject);
+            }
+            leaderBoardStudents.Clear();
+
             foreach (var studentName in AnswerManager.PresentStudents)
             {
                 var studentInstance = Instantiate(leaderBoardStudentPrefab, content);
-                AnswerManager.StudentScores[studentName] = 0; // Initialize scores
-                studentInstance.SetView(studentName, AnswerManager.StudentScores[studentName]);
+                if (!AnswerManager.StudentScores.ContainsKey(studentName))
+                {
+                    AnswerManager.StudentScores[studentName] = 0; // Initialize scores
+                }
+                studentInstance.SetView(studentName, AnswerManager.StudentScores[studentName].ToString());
                 leaderBoardStudents.Add(studentInstance);
             }
         }
 
         private void StartNewRound()
         {
-            availableStudents = new List<string>(AnswerManager.PresentStudents);
+            UpdateAvailableStudents();
             PickRandomStudent();
             currentPoints = 1;
             yesButton.onClick.AddListener(OnYesButtonClicked);
             noButton.onClick.AddListener(OnNoButtonClicked);
         }
 
+        private void UpdateAvailableStudents()
+        {
+            availableStudents = new List<string>(AnswerManager.PresentStudents);
+        }
+
         private void PickRandomStudent()
         {
             if (availableStudents.Count == 0)
             {
-                availableStudents = new List<string>(AnswerManager.PresentStudents);
+                UpdateAvailableStudents();
             }
 
-            int randomIndex = Random.Range(0, availableStudents.Count);
-            currentStudent = availableStudents[randomIndex];
-            availableStudents.RemoveAt(randomIndex);
-            currentStudentText.text = $"{currentStudent} + {currentPoints}";
+            if (availableStudents.Count > 0)
+            {
+                int randomIndex = Random.Range(0, availableStudents.Count);
+                currentStudent = availableStudents[randomIndex];
+                availableStudents.RemoveAt(randomIndex);
+                UpdateAnsweringStudent(currentStudent);
+            }
         }
 
         private void OnYesButtonClicked()
         {
-            AnswerManager.StudentScores[currentStudent] += currentPoints;
-            currentPoints = 1;
-            UpdateLeaderBoard();
-            SaveScoresToFile();
-            PickRandomStudent();
+            if (AnswerManager.StudentScores.ContainsKey(currentStudent))
+            {
+                AnswerManager.StudentScores[currentStudent] += currentPoints;
+                currentPoints = 1;
+                UpdateLeaderBoard();
+                SaveScoresToFile();
+                PickRandomStudent();
+            }
         }
 
         private void OnNoButtonClicked()
@@ -85,12 +99,27 @@ namespace _Scripts.Screens.GameScreen
 
         private void UpdateLeaderBoard()
         {
-            foreach (LeaderBoardStudent student in leaderBoardStudents)
+            // Clear the current leaderboard display
+            foreach (Transform child in content)
             {
-                string studentName = student.NameText.text;
-                if (AnswerManager.StudentScores.TryGetValue(studentName, out var score))
+                Destroy(child.gameObject);
+            }
+            leaderBoardStudents.Clear();
+
+            // Sort students by score in descending order
+            var sortedStudents = new List<KeyValuePair<string, int>>(AnswerManager.StudentScores);
+            sortedStudents.Sort((pair1, pair2) => pair2.Value.CompareTo(pair1.Value));
+
+            bool firstStudent = true;
+            foreach (var kvp in sortedStudents)
+            {
+                if (AnswerManager.PresentStudents.Contains(kvp.Key))
                 {
-                    student.SetView(studentName, score);
+                    var studentInstance = Instantiate(leaderBoardStudentPrefab, content);
+                    studentInstance.SetView(kvp.Key, kvp.Value.ToString());
+                    studentInstance.SetCrown(firstStudent); // Установити корону першому студенту
+                    firstStudent = false;
+                    leaderBoardStudents.Add(studentInstance);
                 }
             }
         }
@@ -106,14 +135,47 @@ namespace _Scripts.Screens.GameScreen
             }
         }
 
+        private void OnBackButtonClicked()
+        {
+            yesButton.onClick.RemoveListener(OnYesButtonClicked);
+            noButton.onClick.RemoveListener(OnNoButtonClicked);
+            ScreenNavigationSystem.ScreenNavigationSystem.Instance.NavigateTo(ScreenName.Preview);
+        }
+
         public override void Show(object data = null)
         {
+            string directoryPath = Path.Combine(Application.dataPath, "StudentScores");
+            if (!Directory.Exists(directoryPath))
+            {
+                Directory.CreateDirectory(directoryPath);
+            }
+            filePath = Path.Combine(directoryPath, "StudentScores.txt");
+
+            InitializeLeaderBoard();
+            StartNewRound();
         }
 
         public override void Hide()
         {
             yesButton.onClick.RemoveListener(OnYesButtonClicked);
             noButton.onClick.RemoveListener(OnNoButtonClicked);
+        }
+
+        private void UpdateAnsweringStudent(string name)
+        {
+            foreach (var student in leaderBoardStudents)
+            {
+                if (student.NameText.text == name)
+                {
+                    student.ChangeColor(true);
+                    student.SetView(name, $"{AnswerManager.StudentScores[name]} + {currentPoints}");
+                }
+                else
+                {
+                    student.ChangeColor(false);
+                    student.SetView(student.NameText.text, AnswerManager.StudentScores[student.NameText.text].ToString());
+                }
+            }
         }
     }
 }
